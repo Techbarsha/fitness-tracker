@@ -1,84 +1,95 @@
-# app.py
+# Step 4: Create Streamlit App (app.py)
 import streamlit as st
 import joblib
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Load models
-try:
-    rf_regressor = joblib.load('rf_regressor.pkl')
-    svm_classifier = joblib.load('svm_classifier.pkl')
-except Exception as e:
-    st.error(f"Error loading models: {str(e)}")
-    st.stop()
+# Load model
+model = joblib.load('calorie_model.pkl')
 
-# Recommendation function
-def get_recommendation(user_data):
-    try:
-        calorie_pred = rf_regressor.predict(user_data)
-        intensity_pred = svm_classifier.predict(user_data)
-        
-        recommendations = []
-        if calorie_pred < 300:
-            recommendations.append("Consider increasing workout duration by 15 minutes")
-        if intensity_pred[0] == 'Low':
-            recommendations.append("Try high-intensity interval training (HIIT)")
-            
-        return {
-            'predicted_calories': round(calorie_pred[0], 2),
-            'recommended_intensity': intensity_pred[0],
-            'personalized_recommendations': recommendations
-        }
-    except Exception as e:
-        return {'error': str(e)}
+st.set_page_config(page_title="Fitness Tracker", layout="wide")
+st.title("AI-Powered Fitness Tracker 🏋️")
 
-# App interface
-st.title('🏋️ Personal Fitness Tracker')
-st.markdown("### Get personalized fitness recommendations based on your metrics")
+# Sidebar inputs
+with st.sidebar:
+    st.header("Workout Details")
+    steps = st.slider("Steps", 0, 20000, 10000)
+    heart_rate = st.slider("Heart Rate (bpm)", 60, 200, 120)
+    bmi = st.slider("BMI", 15.0, 35.0, 25.0)
+    active_mins = st.slider("Active Minutes", 0, 300, 60)
+    intensity = st.selectbox("Workout Intensity", ['Low', 'Moderate', 'High'])
 
-with st.form("user_inputs"):
+# Encode intensity
+intensity_mapping = {
+    'Low': [1, 0, 0],
+    'Moderate': [0, 1, 0],
+    'High': [0, 0, 1]
+}
+
+# Create input dataframe
+input_data = pd.DataFrame([[
+    steps,
+    heart_rate,
+    bmi,
+    active_mins,
+    *intensity_mapping[intensity]
+], columns=X.columns)
+
+# Prediction and Visualization
+if st.button("Calculate Calories Burned"):
+    prediction = model.predict(input_data)[0]
+    
     col1, col2 = st.columns(2)
+    
     with col1:
-        age = st.number_input('Age', 18, 100, 30)
-        weight = st.number_input('Weight (kg)', 40.0, 200.0, 70.0)
-        height = st.number_input('Height (cm)', 100.0, 250.0, 170.0)
+        st.subheader("Calorie Prediction 🔥")
+        st.metric(label="Estimated Calories Burned", value=f"{prediction:.0f} kcal")
+        
+        # Progress gauge
+        fig, ax = plt.subplots()
+        ax.pie([prediction, 3000-prediction], 
+               labels=['Burned', 'Remaining'], 
+               colors=['#FF4B4B', '#DCDCDC'],
+               startangle=90)
+        st.pyplot(fig)
+    
     with col2:
-        exercise_duration = st.number_input('Exercise Duration (minutes)', 0, 180, 45)
-        heart_rate = st.number_input('Heart Rate (bpm)', 60, 200, 120)
-        steps = st.number_input('Steps', 0, 30000, 8000)
-    activity_type = st.selectbox('Activity Type', ['Running', 'Cycling', 'Swimming', 'Weight Training'])
-    
-    submitted = st.form_submit_button("Get Recommendations")
+        st.subheader("Workout Analysis 📈")
+        # Intensity comparison
+        intensity_data = pd.DataFrame({
+            'Intensity': ['Low', 'Moderate', 'High'],
+            'Your Workout': intensity_mapping[intensity],
+            'Average': [0.2, 0.5, 0.3]
+        })
+        st.bar_chart(intensity_data.set_index('Intensity'))
+        
+        # Heart rate zone
+        st.write("Heart Rate Zones:")
+        st.progress(heart_rate/200)
 
-if submitted:
-    user_data = pd.DataFrame({
-        'Age': [age],
-        'Weight': [weight],
-        'Height': [height],
-        'Exercise_Duration': [exercise_duration],
-        'Heart_Rate': [heart_rate],
-        'Steps': [steps],
-        'BMI': [weight / ((height/100) ** 2)],
-        'Gender_Female': [0],
-        'Gender_Male': [1],
-        'Activity_Type_Cycling': [1 if activity_type == 'Cycling' else 0],
-        'Activity_Type_Running': [1 if activity_type == 'Running' else 0],
-        'Activity_Type_Swimming': [1 if activity_type == 'Swimming' else 0],
-        'Activity_Type_Weight Training': [1 if activity_type == 'Weight Training' else 0]
+# Additional Features
+st.header("Fitness Dashboard")
+tab1, tab2 = st.tabs(["Workout Trends", "Health Tips"])
+
+with tab1:
+    # Generate sample data
+    trend_data = pd.DataFrame({
+        'Day': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        'Calories': [300, 450, 400, 500, 480, 600, 350]
     })
-    
-    results = get_recommendation(user_data)
-    
-    if 'error' in results:
-        st.error(f"Prediction error: {results['error']}")
-    else:
-        st.success("Here are your personalized recommendations:")
-        with st.expander("See detailed results"):
-            st.metric("Predicted Calories Burned", f"{results['predicted_calories']} kcal")
-            st.write(f"**Recommended Intensity:** {results['recommended_intensity']}")
-            
-            st.markdown("**Actionable Recommendations:**")
-            for rec in results['personalized_recommendations']:
-                st.write(f"✅ {rec}")
+    st.line_chart(trend_data.set_index('Day'))
 
-st.markdown("---")
-st.info("Note: This app uses machine learning models trained on synthetic data. For real-world use, consult a fitness professional.")
+with tab2:
+    st.subheader("Personalized Recommendations")
+    if prediction > 500:
+        st.success("🔥 Great intensity! Keep it up!")
+        st.write("Try adding strength training 3x/week")
+    else:
+        st.info("💪 Good start! Try increasing workout duration by 15 minutes")
+        st.write("Consider adding interval training")
+
+# Step 5: Deployment
+st.sidebar.markdown("""
+**Deployment Instructions:**
+1. Create `requirements.txt` with:
