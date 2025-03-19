@@ -33,8 +33,11 @@ input_data = pd.DataFrame([[
     heart_rate,
     bmi,
     active_mins,
-    *intensity_mapping[intensity]
-], columns=X.columns)
+    1 if intensity == "Low" else 0,
+    1 if intensity == "Moderate" else 0,
+    1 if intensity == "High" else 0
+]], columns=['Steps', 'Heart_Rate', 'BMI', 'Active_Minutes', 
+           'Intensity_Low', 'Intensity_Moderate', 'Intensity_High'])
 
 # Prediction and Visualization
 if st.button("Calculate Calories Burned"):
